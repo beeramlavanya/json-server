@@ -13,7 +13,17 @@ const singular = require('./singular')
 const mixins = require('../mixins')
 
 module.exports = (db, opts) => {
-  opts = Object.assign({ foreignKeySuffix: 'Id', _isFake: false }, opts)
+  opts = Object.assign(
+    {
+      foreignKeySuffix: 'Id',
+      _isFake: false,
+      _noRemoveDependents: false,
+      _noDataNext: false,
+      _noDbRoute: false,
+      bodyParser: undefined,
+    },
+    opts
+  )
 
   if (typeof db === 'string') {
     db = low(new FileSync(db))
@@ -26,7 +36,7 @@ module.exports = (db, opts) => {
 
   // Add middlewares
   router.use(methodOverride())
-  router.use(bodyParser)
+  router.use(typeof opts.bodyParser === `object` ? opts.bodyParser : bodyParser)
 
   validateData(db.getState())
 
@@ -40,14 +50,19 @@ module.exports = (db, opts) => {
   router.db = db
 
   // Expose render
-  router.render = (req, res) => {
+  router.render = (req, res, next) => {
+    if (!res.locals.data) {
+      res.status(404)
+      res.locals.data = {}
+    }
     res.jsonp(res.locals.data)
   }
 
   // GET /db
-  router.get('/db', (req, res) => {
-    res.jsonp(db.getState())
-  })
+  !opts._noDbRoute &&
+    router.get('/db', (req, res) => {
+      res.jsonp(db.getState())
+    })
 
   // Handle /:parent/:parentId/:resource
   router.use(nested(opts))
@@ -81,13 +96,12 @@ module.exports = (db, opts) => {
     throw new Error(msg)
   }).value()
 
-  router.use((req, res) => {
-    if (!res.locals.data) {
-      res.status(404)
-      res.locals.data = {}
+  router.use((req, res, next) => {
+    if (opts._noDataNext && !res.locals.data) {
+      next()
+    } else {
+      router.render(req, res, next)
     }
-
-    router.render(req, res)
   })
 
   router.use((err, req, res, next) => {

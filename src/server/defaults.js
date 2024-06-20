@@ -12,7 +12,17 @@ module.exports = function (opts) {
   const defaultDir = path.join(__dirname, '../../public')
   const staticDir = fs.existsSync(userDir) ? userDir : defaultDir
 
-  opts = Object.assign({ logger: true, static: staticDir }, opts)
+  opts = Object.assign(
+    {
+      noGzip: undefined,
+      noCors: undefined,
+      readOnly: undefined,
+      bodyParser: undefined, // true / false / object
+      logger: true,
+      static: staticDir,
+    },
+    opts
+  )
 
   const arr = []
 
@@ -65,8 +75,11 @@ module.exports = function (opts) {
   }
 
   // Add middlewares
-  if (opts.bodyParser) {
+  if (opts.bodyParser && typeof opts.bodyParser !== `object`) {
     arr.push(bodyParser)
+  }
+  if (opts.bodyParser && typeof opts.bodyParser === `object`) {
+    arr.push(opts.bodyParser)
   }
 
   return arr
